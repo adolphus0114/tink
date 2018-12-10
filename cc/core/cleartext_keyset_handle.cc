@@ -51,6 +51,5 @@ const Keyset& CleartextKeysetHandle::GetKeyset(
   return keyset_handle.get_keyset();
 }
 
-
 }  // namespace tink
 }  // namespace crypto

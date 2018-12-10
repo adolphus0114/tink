@@ -49,10 +49,12 @@ namespace {
 class EciesAeadHkdfPrivateKeyManagerTest : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    auto aes_gcm_key_manager = new AesGcmKeyManager();
-    ASSERT_TRUE(Registry::RegisterKeyManager(aes_gcm_key_manager).ok());
-    auto aes_ctr_hmac_key_manager = new AesCtrHmacAeadKeyManager();
-    ASSERT_TRUE(Registry::RegisterKeyManager(aes_ctr_hmac_key_manager).ok());
+    ASSERT_TRUE(Registry::RegisterKeyManager(
+                    absl::make_unique<AesGcmKeyManager>(), true)
+                    .ok());
+    ASSERT_TRUE(Registry::RegisterKeyManager(
+                    absl::make_unique<AesCtrHmacAeadKeyManager>(), true)
+                    .ok());
   }
 
   std::string key_type_prefix = "type.googleapis.com/";
@@ -237,7 +239,7 @@ TEST_F(EciesAeadHkdfPrivateKeyManagerTest, testPublicKeyExtraction) {
       new_key->SerializeAsString());
   EXPECT_TRUE(public_key_data_result.ok()) << public_key_data_result.status();
   auto public_key_data = std::move(public_key_data_result.ValueOrDie());
-  EXPECT_EQ(EciesAeadHkdfPublicKeyManager::kKeyType,
+  EXPECT_EQ(EciesAeadHkdfPublicKeyManager::static_key_type(),
             public_key_data->type_url());
   EXPECT_EQ(KeyData::ASYMMETRIC_PUBLIC, public_key_data->key_material_type());
   EXPECT_EQ(new_key->public_key().SerializeAsString(),
@@ -335,9 +337,3 @@ TEST_F(EciesAeadHkdfPrivateKeyManagerTest, testNewKeyErrors) {
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

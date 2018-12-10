@@ -58,6 +58,10 @@ import com.google.crypto.tink.proto.Keyset;
 import com.google.crypto.tink.proto.Keyset.Key;
 import com.google.crypto.tink.proto.KeysetInfo;
 import com.google.crypto.tink.proto.OutputPrefixType;
+import com.google.crypto.tink.proto.RsaSsaPkcs1Params;
+import com.google.crypto.tink.proto.RsaSsaPkcs1PublicKey;
+import com.google.crypto.tink.proto.RsaSsaPssParams;
+import com.google.crypto.tink.proto.RsaSsaPssPublicKey;
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig;
 import com.google.crypto.tink.subtle.EllipticCurves;
 import com.google.crypto.tink.subtle.Hex;
@@ -73,10 +77,24 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javax.crypto.Cipher;
 
 /** Test helpers. */
 public class TestUtil {
+  /** A place holder to keep mutated bytes and its description. */
+  public static class BytesMutation {
+    public byte[] value;
+    public String description;
+
+    public BytesMutation(byte[] value, String description) {
+      this.value = value;
+      this.description = description;
+    }
+  }
+
   // This GCP KMS CryptoKey is restricted to the service account in {@code SERVICE_ACCOUNT_FILE}.
   public static final String RESTRICTED_CRYPTO_KEY_URI =
       String.format(
@@ -349,6 +367,45 @@ public class TestUtil {
   }
 
   /**
+   * @return a {@code RsaSsaPkcs1PublicKey} constructed from {@code modulus}, {@code exponent} and
+   *     {@code hashType}.
+   */
+  public static RsaSsaPkcs1PublicKey createRsaSsaPkcs1PubKey(
+      byte[] modulus, byte[] exponent, HashType hashType) throws Exception {
+    final int version = 0;
+    RsaSsaPkcs1Params params = RsaSsaPkcs1Params.newBuilder().setHashType(hashType).build();
+
+    return RsaSsaPkcs1PublicKey.newBuilder()
+        .setVersion(version)
+        .setParams(params)
+        .setN(ByteString.copyFrom(modulus))
+        .setE(ByteString.copyFrom(exponent))
+        .build();
+  }
+
+  /**
+   * Returns a {@code RsaSsaPssPublicKey} constructed from {@code modulus}, {@code exponent}, {@code
+   * sigHash}, {@code mgf1Hash} and {@code saltLength}.
+   */
+  public static RsaSsaPssPublicKey createRsaSsaPssPubKey(
+      byte[] modulus, byte[] exponent, HashType sigHash, HashType mgf1Hash, int saltLength)
+      throws Exception {
+    final int version = 0;
+    RsaSsaPssParams params =
+        RsaSsaPssParams.newBuilder()
+            .setSigHash(sigHash)
+            .setMgf1Hash(mgf1Hash)
+            .setSaltLength(saltLength)
+            .build();
+
+    return RsaSsaPssPublicKey.newBuilder()
+        .setVersion(version)
+        .setParams(params)
+        .setN(ByteString.copyFrom(modulus))
+        .setE(ByteString.copyFrom(exponent))
+        .build();
+  }
+  /**
    * @return a freshly generated {@code EciesAeadHkdfPrivateKey} constructed with specified
    *     parameters.
    */
@@ -483,6 +540,14 @@ public class TestUtil {
     }
   }
 
+  /**
+   * Best-effort checks that this is running under tsan. Returns false in doubt and externally to
+   * google.
+   */
+  public static boolean isTsan() {
+    return false;
+  }
+
   /** Returns whether we should skip a test with some AES key size. */
   public static boolean shouldSkipTestWithAesKeySize(int keySizeInBytes)
       throws NoSuchAlgorithmException {
@@ -590,14 +655,40 @@ public class TestUtil {
     assertEquals(keyManagerVersion, entry.getKeyManagerVersion());
   }
 
-  /**
-   * Convert an array of long to an array of int.
-   */
+  /** Convert an array of long to an array of int. */
   public static int[] twoCompInt(long[] a) {
     int[] ret = new int[a.length];
     for (int i = 0; i < a.length; i++) {
       ret[i] = (int) (a[i] - (a[i] > Integer.MAX_VALUE ? (1L << 32) : 0));
     }
     return ret;
+  }
+
+  /**
+   * Generates mutations of {@code bytes}, e.g., flipping bits and truncating.
+   *
+   * @return a list of pairs of mutated value and mutation description.
+   */
+  public static List<BytesMutation> generateMutations(byte[] bytes) {
+    List<BytesMutation> res = new ArrayList<BytesMutation>();
+
+    // Flip bits.
+    for (int i = 0; i < bytes.length; i++) {
+      for (int j = 0; j < 8; j++) {
+        byte[] modifiedBytes = Arrays.copyOf(bytes, bytes.length);
+        modifiedBytes[i] = (byte) (modifiedBytes[i] ^ (1 << j));
+        res.add(new BytesMutation(modifiedBytes, String.format("Flip bit %d of data", i)));
+      }
+    }
+
+    // Truncate bytes.
+    for (int i = 0; i < bytes.length; i++) {
+      byte[] modifiedBytes = Arrays.copyOf(bytes, i);
+      res.add(new BytesMutation(modifiedBytes, String.format("Truncate upto %d bytes of data", i)));
+    }
+
+    // Append an extra byte.
+    res.add(new BytesMutation(Arrays.copyOf(bytes, bytes.length + 1), "Append an extra zero byte"));
+    return res;
   }
 }

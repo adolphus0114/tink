@@ -13,15 +13,15 @@
 // limitations under the License.
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
+#define TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
 
 #include <algorithm>
 #include <vector>
 
-#ifndef TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
-#define TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
-
 #include "absl/strings/string_view.h"
 #include "tink/aead.h"
+#include "tink/core/key_manager_base.h"
 #include "tink/key_manager.h"
 #include "tink/util/errors.h"
 #include "tink/util/protobuf_helper.h"
@@ -33,28 +33,14 @@
 namespace crypto {
 namespace tink {
 
-class AesCtrHmacAeadKeyManager : public KeyManager<Aead> {
+class AesCtrHmacAeadKeyManager
+    : public KeyManagerBase<Aead, google::crypto::tink::AesCtrHmacAeadKey> {
  public:
-  static constexpr char kKeyType[] =
-      "type.googleapis.com/google.crypto.tink.AesCtrHmacAeadKey";
   static constexpr char kHmacKeyType[] =
       "type.googleapis.com/google.crypto.tink.HmacKey";
   static constexpr uint32_t kVersion = 0;
 
   AesCtrHmacAeadKeyManager();
-
-  // Constructs an instance of AES-CTR-HMAC-AEAD Aead for the given 'key_data',
-  // which must contain AesCtrHmacAeadKey-proto.
-  crypto::tink::util::StatusOr<std::unique_ptr<Aead>> GetPrimitive(
-      const google::crypto::tink::KeyData& key_data) const override;
-
-  // Constructs an instance of AES-CTR-HMAC-AEAD Aead for the given 'key',
-  // which must be AesCtrHmacAeadKey-proto.
-  crypto::tink::util::StatusOr<std::unique_ptr<Aead>> GetPrimitive(
-      const portable_proto::MessageLite& key) const override;
-
-  // Returns the type_url identifying the key type handled by this manager.
-  const std::string& get_key_type() const override;
 
   // Returns the version of this key manager.
   uint32_t get_version() const override;
@@ -65,14 +51,14 @@ class AesCtrHmacAeadKeyManager : public KeyManager<Aead> {
 
   virtual ~AesCtrHmacAeadKeyManager() {}
 
+ protected:
+  crypto::tink::util::StatusOr<std::unique_ptr<Aead>> GetPrimitiveFromKey(
+      const google::crypto::tink::AesCtrHmacAeadKey& aes_ctr_hmac_aead_key)
+      const override;
+
  private:
   friend class AesCtrHmacAeadKeyFactory;
 
-  static constexpr char kKeyTypePrefix[] = "type.googleapis.com/";
-  static constexpr char kKeyFormatUrl[] =
-      "type.googleapis.com/google.crypto.tink.AesCtrHmacAeadKeyFormat";
-
-  std::string key_type_;
   std::unique_ptr<KeyFactory> key_factory_;
 
   // Constructs an instance of AES-CTR-HMAC-AEAD Aead for the given 'key'.

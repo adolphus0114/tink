@@ -44,7 +44,7 @@ def _java_single_jar(ctx):
 
     args = ctx.actions.args()
     args.add("--sources")
-    args.add(inputs)
+    args.add_all(inputs)
     args.use_param_file(
         "@%s",
         use_always = True,

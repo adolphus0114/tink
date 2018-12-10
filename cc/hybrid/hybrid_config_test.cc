@@ -18,6 +18,10 @@
 
 #include "tink/catalogue.h"
 #include "tink/config.h"
+#include "tink/hybrid/hybrid_key_templates.h"
+#include "tink/hybrid_decrypt.h"
+#include "tink/hybrid_encrypt.h"
+#include "tink/keyset_handle.h"
 #include "tink/registry.h"
 #include "tink/util/status.h"
 #include "gtest/gtest.h"
@@ -58,11 +62,13 @@ TEST_F(HybridConfigTest, testBasic) {
       "type.googleapis.com/google.crypto.tink.AesEaxKey";
   std::string aes_gcm_key_type =
       "type.googleapis.com/google.crypto.tink.AesGcmKey";
+  std::string xchacha20_poly1305_key_type =
+      "type.googleapis.com/google.crypto.tink.XChaCha20Poly1305Key";
   std::string hmac_key_type =
       "type.googleapis.com/google.crypto.tink.HmacKey";
   auto& config = HybridConfig::Latest();
 
-  EXPECT_EQ(6, HybridConfig::Latest().entry_size());
+  EXPECT_EQ(7, HybridConfig::Latest().entry_size());
 
   EXPECT_EQ("TinkMac", config.entry(0).catalogue_name());
   EXPECT_EQ("Mac", config.entry(0).primitive_name());
@@ -88,17 +94,23 @@ TEST_F(HybridConfigTest, testBasic) {
   EXPECT_EQ(true, config.entry(3).new_key_allowed());
   EXPECT_EQ(0, config.entry(3).key_manager_version());
 
-  EXPECT_EQ("TinkHybridDecrypt", config.entry(4).catalogue_name());
-  EXPECT_EQ("HybridDecrypt", config.entry(4).primitive_name());
-  EXPECT_EQ(decrypt_key_type, config.entry(4).type_url());
+  EXPECT_EQ("TinkAead", config.entry(4).catalogue_name());
+  EXPECT_EQ("Aead", config.entry(4).primitive_name());
+  EXPECT_EQ(xchacha20_poly1305_key_type, config.entry(4).type_url());
   EXPECT_EQ(true, config.entry(4).new_key_allowed());
   EXPECT_EQ(0, config.entry(4).key_manager_version());
 
-  EXPECT_EQ("TinkHybridEncrypt", config.entry(5).catalogue_name());
-  EXPECT_EQ("HybridEncrypt", config.entry(5).primitive_name());
-  EXPECT_EQ(encrypt_key_type, config.entry(5).type_url());
+  EXPECT_EQ("TinkHybridDecrypt", config.entry(5).catalogue_name());
+  EXPECT_EQ("HybridDecrypt", config.entry(5).primitive_name());
+  EXPECT_EQ(decrypt_key_type, config.entry(5).type_url());
   EXPECT_EQ(true, config.entry(5).new_key_allowed());
   EXPECT_EQ(0, config.entry(5).key_manager_version());
+
+  EXPECT_EQ("TinkHybridEncrypt", config.entry(6).catalogue_name());
+  EXPECT_EQ("HybridEncrypt", config.entry(6).primitive_name());
+  EXPECT_EQ(encrypt_key_type, config.entry(6).type_url());
+  EXPECT_EQ(true, config.entry(6).new_key_allowed());
+  EXPECT_EQ(0, config.entry(6).key_manager_version());
 
   // No key manager before registration.
   auto decrypt_manager_result =
@@ -159,12 +171,46 @@ TEST_F(HybridConfigTest, testRegister) {
   EXPECT_EQ(util::error::ALREADY_EXISTS, status.error_code());
 }
 
+// Tests that the HybridEncrypt and HybridDecrypt wrappers have been properly
+// registered and we can wrap primitives.
+TEST_F(HybridConfigTest, WrappersRegistered) {
+  ASSERT_TRUE(HybridConfig::Register().ok());
+  auto private_keyset_handle_result = KeysetHandle::GenerateNew(
+      HybridKeyTemplates::EciesP256HkdfHmacSha256Aes128Gcm());
+  ASSERT_TRUE(private_keyset_handle_result.ok());
+
+  auto public_keyset_handle_result =
+      private_keyset_handle_result.ValueOrDie()->GetPublicKeysetHandle();
+  ASSERT_TRUE(public_keyset_handle_result.ok());
+
+  auto private_primitive_set_result =
+      private_keyset_handle_result.ValueOrDie()->GetPrimitives<HybridDecrypt>(
+          nullptr);
+  ASSERT_TRUE(private_primitive_set_result.ok());
+
+  auto public_primitive_set_result =
+      public_keyset_handle_result.ValueOrDie()->GetPrimitives<HybridEncrypt>(
+          nullptr);
+  ASSERT_TRUE(public_primitive_set_result.ok());
+
+  auto private_primitive_result =
+      Registry::Wrap(std::move(private_primitive_set_result.ValueOrDie()));
+  ASSERT_TRUE(private_primitive_result.ok());
+
+  auto public_primitive_result =
+      Registry::Wrap(std::move(public_primitive_set_result.ValueOrDie()));
+  ASSERT_TRUE(public_primitive_result.ok());
+
+  auto encryption_result =
+      public_primitive_result.ValueOrDie()->Encrypt("encrypted text", "");
+  ASSERT_TRUE(encryption_result.ok());
+
+  auto decryption_result = private_primitive_result.ValueOrDie()->Decrypt(
+      encryption_result.ValueOrDie(), "");
+  ASSERT_TRUE(decryption_result.ok());
+  EXPECT_EQ(decryption_result.ValueOrDie(), "encrypted text");
+}
+
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

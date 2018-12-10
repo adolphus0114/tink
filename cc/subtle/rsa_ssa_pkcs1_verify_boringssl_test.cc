@@ -16,6 +16,7 @@
 
 #include "tink/subtle/rsa_ssa_pkcs1_verify_boringssl.h"
 
+#include <iostream>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -75,7 +76,7 @@ static const NistTestVector nist_test_vector{
         "2abca413e5e4693f4a9405"),
     HashType::SHA256};
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testBasicVerify) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, BasicVerify) {
   SubtleUtilBoringSSL::RsaPublicKey pub_key{nist_test_vector.n,
                                             nist_test_vector.e};
   SubtleUtilBoringSSL::RsaSsaPkcs1Params params{nist_test_vector.sig_hash};
@@ -88,7 +89,7 @@ TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testBasicVerify) {
   EXPECT_TRUE(status.ok()) << status << SubtleUtilBoringSSL::GetErrors();
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testNewErrors) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, NewErrors) {
   SubtleUtilBoringSSL::RsaPublicKey nist_pub_key{nist_test_vector.n,
                                                  nist_test_vector.e};
   SubtleUtilBoringSSL::RsaSsaPkcs1Params nist_params{nist_test_vector.sig_hash};
@@ -116,7 +117,7 @@ TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testNewErrors) {
   }
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testModification) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, Modification) {
   SubtleUtilBoringSSL::RsaPublicKey pub_key{nist_test_vector.n,
                                             nist_test_vector.e};
   SubtleUtilBoringSSL::RsaSsaPkcs1Params params{nist_test_vector.sig_hash};
@@ -149,37 +150,15 @@ TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testModification) {
   }
 }
 
-// Integers in Wycheproof are represented as signed bigendian hexadecimal
-// strings in twos complement representation.
-// Integers in EcKey are unsigned and are represented as an array of bytes
-// using bigendian order.
-// GetInteger can assume that val is always 0 or a positive integer, since
-// they are values from the key: a convention in Wycheproof is that parameters
-// in the test group are valid, only values in the test vector itself may
-// be invalid.
-static std::string GetInteger(const rapidjson::Value& val) {
-  std::string hex(val.GetString());
-  // Since val is a hexadecimal integer it can have an odd length.
-  if (hex.size() % 2 == 1) {
-    // Avoid a leading 0 byte.
-    if (hex[0] == '0') {
-      hex = std::string(hex, 1, hex.size() - 1);
-    } else {
-      hex = "0" + hex;
-    }
-  }
-  return test::HexDecodeOrDie(hex);
-}
-
 static util::StatusOr<std::unique_ptr<RsaSsaPkcs1VerifyBoringSsl>> GetVerifier(
     const rapidjson::Value& test_group) {
   SubtleUtilBoringSSL::RsaPublicKey key;
-  key.n = GetInteger(test_group["n"]);
-  key.e = GetInteger(test_group["e"]);
+  key.n = WycheproofUtil::GetInteger(test_group["n"]);
+  key.e = WycheproofUtil::GetInteger(test_group["e"]);
 
   HashType md = WycheproofUtil::GetHashType(test_group["sha"]);
   SubtleUtilBoringSSL::RsaSsaPkcs1Params params;
-  params.sig_hash = md;
+  params.hash_type = md;
 
   auto result = RsaSsaPkcs1VerifyBoringSsl::New(key, params);
   if (!result.ok()) {
@@ -209,7 +188,7 @@ bool TestSignatures(const std::string& filename, bool allow_skipping) {
       std::string type = test_group["type"].GetString();
       if (allow_skipping) {
         std::cout << "Could not construct verifier for " << type << " group "
-                << group_count << ": " << verifier_result.status();
+                  << group_count << ": " << verifier_result.status();
       } else {
         ADD_FAILURE() << "Could not construct verifier for " << type
                       << " group " << group_count << ": "
@@ -260,22 +239,22 @@ bool TestSignatures(const std::string& filename, bool allow_skipping) {
   return failed_tests == 0;
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testVectorsNist2048SHA256) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, WycheproofRsaPkcs12048SHA256) {
   ASSERT_TRUE(TestSignatures("rsa_signature_2048_sha256_test.json",
                              /*allow_skipping=*/false));
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testVectorsNist3072SHA256) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, WycheproofRsaPkcs13072SHA256) {
   ASSERT_TRUE(TestSignatures("rsa_signature_3072_sha256_test.json",
                              /*allow_skipping=*/false));
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testVectorsNist3072SHA512) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, WycheproofRsaPkcs13072SHA512) {
   ASSERT_TRUE(TestSignatures("rsa_signature_3072_sha512_test.json",
                              /*allow_skipping=*/false));
 }
 
-TEST_F(RsaSsaPkcs1VerifyBoringSslTest, testVectorsNist4096SHA512) {
+TEST_F(RsaSsaPkcs1VerifyBoringSslTest, WycheproofRsaPkcs14096SHA512) {
   ASSERT_TRUE(TestSignatures("rsa_signature_4096_sha512_test.json",
                              /*allow_skipping=*/false));
 }

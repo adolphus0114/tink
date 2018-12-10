@@ -52,9 +52,7 @@ readonly DISABLE_SANDBOX_ARGS
 if ! [ -z "${KOKORO_ROOT}" ]; then
   rm -f ~/.bazelrc
   # Install the latest version of Bazel.
-  # TODO(candrian): Temporarily set to 0.15.2 because 0.16.x with JDK 9 throws
-  # errors. Once these are fixed we can revert to latest.
-  use_bazel.sh 0.15.2
+  use_bazel.sh latest
   if [[ "$PLATFORM" == 'darwin' ]]; then
     export DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
     export ANDROID_HOME="/Users/kbuilder/Library/Android/sdk"
@@ -83,9 +81,6 @@ run_linux_tests() {
   --strategy=TestRunner=standalone --test_output=all \
   -- //... \
   -//objc/... || ( ls -l ; df -h / ; exit 1 )
-
-  # Test that Tink can be installed with the standard Go tooling.
-  go get github.com/google/tink/go/...
 }
 
 run_macos_tests() {

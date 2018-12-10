@@ -16,6 +16,7 @@
 
 #include "tink/subtle/ecdsa_verify_boringssl.h"
 
+#include <iostream>
 #include <string>
 
 #include "absl/strings/str_cat.h"
@@ -38,7 +39,7 @@ namespace {
 
 class EcdsaVerifyBoringSslTest : public ::testing::Test {};
 
-TEST_F(EcdsaVerifyBoringSslTest, testBasicSigning) {
+TEST_F(EcdsaVerifyBoringSslTest, BasicSigning) {
   subtle::EcdsaSignatureEncoding encodings[2] = {
       EcdsaSignatureEncoding::DER, EcdsaSignatureEncoding::IEEE_P1363};
   for (EcdsaSignatureEncoding encoding : encodings) {
@@ -76,7 +77,7 @@ TEST_F(EcdsaVerifyBoringSslTest, testBasicSigning) {
   }
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testEncodingsMismatch) {
+TEST_F(EcdsaVerifyBoringSslTest, EncodingsMismatch) {
   subtle::EcdsaSignatureEncoding encodings[2] = {
       EcdsaSignatureEncoding::DER, EcdsaSignatureEncoding::IEEE_P1363};
   for (EcdsaSignatureEncoding encoding : encodings) {
@@ -108,7 +109,7 @@ TEST_F(EcdsaVerifyBoringSslTest, testEncodingsMismatch) {
   }
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testNewErrors) {
+TEST_F(EcdsaVerifyBoringSslTest, NewErrors) {
   auto ec_key = SubtleUtilBoringSSL::GetNewEcKey(EllipticCurveType::NIST_P256)
                     .ValueOrDie();
   auto verifier_result = EcdsaVerifyBoringSsl::New(
@@ -116,34 +117,12 @@ TEST_F(EcdsaVerifyBoringSslTest, testNewErrors) {
   EXPECT_FALSE(verifier_result.ok()) << verifier_result.status();
 }
 
-// Integers in Wycheproof are represented as signed bigendian hexadecimal
-// strings in twos complement representation.
-// Integers in EcKey are unsigned and are represented as an array of bytes
-// using bigendian order.
-// GetInteger can assume that val is always 0 or a positive integer, since
-// they are values from the key: a convention in Wycheproof is that parameters
-// in the test group are valid, only values in the test vector itself may
-// be invalid.
-static std::string GetInteger(const rapidjson::Value &val) {
-  std::string hex(val.GetString());
-  // Since val is a hexadecimal integer it can have an odd length.
-  if (hex.size() % 2 == 1) {
-    // Avoid a leading 0 byte.
-    if (hex[0] == '0') {
-      hex = std::string(hex, 1, hex.size()-1);
-    } else {
-      hex = "0" + hex;
-    }
-  }
-  return test::HexDecodeOrDie(hex);
-}
-
 static util::StatusOr<std::unique_ptr<EcdsaVerifyBoringSsl>> GetVerifier(
     const rapidjson::Value& test_group,
     subtle::EcdsaSignatureEncoding encoding) {
   SubtleUtilBoringSSL::EcKey key;
-  key.pub_x = GetInteger(test_group["key"]["wx"]);
-  key.pub_y = GetInteger(test_group["key"]["wy"]);
+  key.pub_x = WycheproofUtil::GetInteger(test_group["key"]["wx"]);
+  key.pub_y = WycheproofUtil::GetInteger(test_group["key"]["wy"]);
   key.curve = WycheproofUtil::GetEllipticCurveType(test_group["key"]["curve"]);
   HashType md = WycheproofUtil::GetHashType(test_group["sha"]);
   auto result = EcdsaVerifyBoringSsl::New(key, md, encoding);
@@ -173,7 +152,7 @@ bool TestSignatures(const std::string& filename, bool allow_skipping,
       std::string curve = test_group["key"]["curve"].GetString();
       if (allow_skipping) {
         std::cout << "Could not construct verifier for curve " << curve
-                << verifier_result.status();
+                  << verifier_result.status();
       } else {
         ADD_FAILURE() << "Could not construct verifier for curve " << curve
                       << verifier_result.status();
@@ -223,22 +202,22 @@ bool TestSignatures(const std::string& filename, bool allow_skipping,
   return failed_tests == 0;
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testVectorsNistP256) {
+TEST_F(EcdsaVerifyBoringSslTest, WycheproofCurveP256) {
   ASSERT_TRUE(TestSignatures("ecdsa_secp256r1_sha256_test.json", false,
                              subtle::EcdsaSignatureEncoding::DER));
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testVectorsNistP384) {
+TEST_F(EcdsaVerifyBoringSslTest, WycheproofCurveP384) {
   ASSERT_TRUE(TestSignatures("ecdsa_secp384r1_sha512_test.json", false,
                              subtle::EcdsaSignatureEncoding::DER));
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testVectorsNistP521) {
+TEST_F(EcdsaVerifyBoringSslTest, WycheproofCurveP521) {
   ASSERT_TRUE(TestSignatures("ecdsa_secp521r1_sha512_test.json", false,
                              subtle::EcdsaSignatureEncoding::DER));
 }
 
-TEST_F(EcdsaVerifyBoringSslTest, testVectorsWithIeeeP1363Encoding) {
+TEST_F(EcdsaVerifyBoringSslTest, WycheproofWithIeeeP1363Encoding) {
   ASSERT_TRUE(TestSignatures("ecdsa_webcrypto_test.json", true,
                              subtle::EcdsaSignatureEncoding::IEEE_P1363));
 }
@@ -247,8 +226,3 @@ TEST_F(EcdsaVerifyBoringSslTest, testVectorsWithIeeeP1363Encoding) {
 }  // namespace subtle
 }  // namespace tink
 }  // namespace crypto
-
-int main(int ac, char *av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

@@ -1,14 +1,20 @@
+package(default_visibility = ["//tools/build_defs:internal_pkg"])  # keep
+
+licenses(["notice"])  # Apache 2.0 # keep
+
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
     srcs = [
-        "ecdsa_sign_key_manager.go",
-        "ecdsa_verify_key_manager.go",
+        "ecdsa_signer_key_manager.go",
+        "ecdsa_verifier_key_manager.go",
+        "ed25519_signer_key_manager.go",
+        "ed25519_verifier_key_manager.go",
+        "init.go",
         "proto_util.go",
-        "public_key_sign_factory.go",
-        "public_key_verify_factory.go",
-        "signature_config.go",
+        "signer_factory.go",
+        "verifier_factory.go",
         "signature_key_templates.go",
     ],
     importpath = "github.com/google/tink/go/signature",
@@ -19,29 +25,36 @@ go_library(
         "//go/tink:go_default_library",
         "//proto:common_go_proto",
         "//proto:ecdsa_go_proto",
+        "//proto:ed25519_go_proto",
         "//proto:tink_go_proto",
         "@com_github_golang_protobuf//proto:go_default_library",
+        "@org_golang_x_crypto//ed25519:go_default_library",
     ],
 )
 
 go_test(
-    name = "go_default_xtest",
+    name = "go_default_test",
     srcs = [
-        "ecdsa_sign_key_manager_test.go",
-        "ecdsa_verify_key_manager_test.go",
-        "signature_config_test.go",
+        "ecdsa_signer_key_manager_test.go",
+        "ecdsa_verifier_key_manager_test.go",
+        "ed25519_signer_key_manager_test.go",
+        "ed25519_verifier_key_manager_test.go",
+        "init_test.go",
         "signature_factory_test.go",
         "signature_key_templates_test.go",
     ],
+    embed = [":go_default_library"],
     deps = [
-        ":go_default_library",
+        "//go/testkeysethandle:go_default_library",
         "//go/subtle/random:go_default_library",
         "//go/subtle/signature:go_default_library",
         "//go/testutil:go_default_library",
         "//go/tink:go_default_library",
         "//proto:common_go_proto",
         "//proto:ecdsa_go_proto",
+        "//proto:ed25519_go_proto",
         "//proto:tink_go_proto",
         "@com_github_golang_protobuf//proto:go_default_library",
+        "@org_golang_x_crypto//ed25519:go_default_library",
     ],
 )

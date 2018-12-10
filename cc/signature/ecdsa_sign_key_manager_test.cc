@@ -228,7 +228,7 @@ TEST_F(EcdsaSignKeyManagerTest, testNewKeyCreation) {
     auto key = std::move(result.ValueOrDie());
     ASSERT_EQ(ecdsa_sign_key_type_, key_type_prefix_ + key->GetTypeName());
     std::unique_ptr<EcdsaPrivateKey> ecdsa_key(
-        reinterpret_cast<EcdsaPrivateKey*>(key.release()));
+        static_cast<EcdsaPrivateKey*>(key.release()));
     CheckNewKey(*ecdsa_key, key_format);
   }
 
@@ -241,7 +241,7 @@ TEST_F(EcdsaSignKeyManagerTest, testNewKeyCreation) {
     auto key = std::move(result.ValueOrDie());
     ASSERT_EQ(ecdsa_sign_key_type_, key_type_prefix_ + key->GetTypeName());
     std::unique_ptr<EcdsaPrivateKey> ecdsa_key(
-        reinterpret_cast<EcdsaPrivateKey*>(key.release()));
+        static_cast<EcdsaPrivateKey*>(key.release()));
     CheckNewKey(*ecdsa_key, key_format);
   }
 
@@ -275,7 +275,7 @@ TEST_F(EcdsaSignKeyManagerTest, testPublicKeyExtraction) {
       new_key->SerializeAsString());
   EXPECT_TRUE(public_key_data_result.ok()) << public_key_data_result.status();
   auto public_key_data = std::move(public_key_data_result.ValueOrDie());
-  EXPECT_EQ(EcdsaVerifyKeyManager::kKeyType,
+  EXPECT_EQ(EcdsaVerifyKeyManager::static_key_type(),
             public_key_data->type_url());
   EXPECT_EQ(KeyData::ASYMMETRIC_PUBLIC, public_key_data->key_material_type());
   EXPECT_EQ(new_key->public_key().SerializeAsString(),
@@ -370,9 +370,3 @@ TEST_F(EcdsaSignKeyManagerTest, testNewKeyErrors) {
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

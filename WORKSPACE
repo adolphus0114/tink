@@ -1,5 +1,7 @@
 workspace(name="tink")
 
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+
 #-----------------------------------------------------------------------------
 # wycheproof, for JSON test vectors
 #-----------------------------------------------------------------------------
@@ -15,9 +17,9 @@ http_archive(
 #-----------------------------------------------------------------------------
 http_archive(
     name = "com_google_absl",
-    strip_prefix = "abseil-cpp-6cf9c731027f4d8aebe3c60df8e64317e6870870",
-    url = "https://github.com/abseil/abseil-cpp/archive/6cf9c731027f4d8aebe3c60df8e64317e6870870.zip",
-    sha256 = "9094c76bb75bb02bafbdc7339d3a6b331bd23d76c357813ac963916f2f12ec11",
+    strip_prefix = "abseil-cpp-c476da141ca9cffc2137baf85872f0cae9ffa9ad",
+    url = "https://github.com/abseil/abseil-cpp/archive/c476da141ca9cffc2137baf85872f0cae9ffa9ad.zip",
+    sha256 = "84b4277a9b56f9a192952beca535313497826c6ff2e38b2cac7351a3ed2ae780",
 )
 
 http_archive(
@@ -35,44 +37,44 @@ http_archive(
     sha256 = "9431adb18d26a304d864c2b05f6e5a165e73108fc89a110f5b27d65d7e51680b",
 )
 
-new_http_archive(
+http_archive(
     name = "rapidjson",
     urls = [
         "https://github.com/Tencent/rapidjson/archive/v1.1.0.tar.gz",
     ],
     sha256 = "bf7ced29704a1e696fbccf2a2b4ea068e7774fa37f6d7dd4039d0787f8bed98e",
     strip_prefix = "rapidjson-1.1.0",
-    build_file = "third_party/rapidjson.BUILD.bazel",
+    build_file = "//:third_party/rapidjson.BUILD.bazel",
 )
 
-new_http_archive(
+http_archive(
     name = "aws_cpp_sdk",
     # Must be in sync with defines in third_party/aws_sdk_cpp.BUILD.bazel.
     urls = [
         "https://github.com/aws/aws-sdk-cpp/archive/1.4.80.tar.gz",
     ],
     strip_prefix = "aws-sdk-cpp-1.4.80/",
-    build_file = "third_party/aws_sdk_cpp.BUILD.bazel",
+    build_file = "//:third_party/aws_sdk_cpp.BUILD.bazel",
 )
 
-new_http_archive(
+http_archive(
     name = "curl",
     urls = [
         "https://mirror.bazel.build/curl.haxx.se/download/curl-7.49.1.tar.gz",
     ],
     sha256 = "ff3e80c1ca6a068428726cd7dd19037a47cc538ce58ef61c59587191039b2ca6",
     strip_prefix = "curl-7.49.1",
-    build_file = "third_party/curl.BUILD.bazel",
+    build_file = "//:third_party/curl.BUILD.bazel",
 )
 
-new_http_archive(
+http_archive(
     name = "zlib_archive",
     urls = [
         "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
     ],
     sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
     strip_prefix = "zlib-1.2.11",
-    build_file = "third_party/zlib.BUILD.bazel",
+    build_file = "//:third_party/zlib.BUILD.bazel",
 )
 
 #-----------------------------------------------------------------------------
@@ -570,7 +572,9 @@ http_archive(
 http_file(
     name = "xctestrunner",
     executable = 1,
-    url = "https://github.com/google/xctestrunner/releases/download/0.2.1/ios_test_runner.par",
+    urls = [
+        "https://github.com/google/xctestrunner/releases/download/0.2.1/ios_test_runner.par"
+    ],
     sha256 = "5bfbd45c5ac89305e8bf3296999d490611b88d4d828b2a39ef6037027411aa94",
 )
 
@@ -579,10 +583,30 @@ http_file(
 #-----------------------------------------------------------------------------
 http_archive(
     name = "io_bazel_rules_go",
-    url = "https://github.com/bazelbuild/rules_go/releases/download/0.10.1/rules_go-0.10.1.tar.gz",
-    sha256 = "4b14d8dd31c6dbaf3ff871adcd03f28c3274e42abc855cb8fb4d01233c0154dc",
+    url = "https://github.com/bazelbuild/rules_go/releases/download/0.16.2/rules_go-0.16.2.tar.gz",
+    sha256 = "f87fa87475ea107b3c69196f39c82b7bbf58fe27c62a338684c20ca17d1d8613",
+)
+http_archive(
+    name = "bazel_gazelle",
+    urls = ["https://github.com/bazelbuild/bazel-gazelle/releases/download/0.14.0/bazel-gazelle-0.14.0.tar.gz"],
+    sha256 = "c0a5739d12c6d05b6c1ad56f2200cb0b57c5a70e03ebd2f7b87ce88cabf09c7b",
 )
 
 load("@io_bazel_rules_go//go:def.bzl", "go_rules_dependencies", "go_register_toolchains")
 go_rules_dependencies()
-go_register_toolchains()
+go_register_toolchains(nogo="@//go:tink_nogo")
+
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+gazelle_dependencies()
+
+load("@bazel_gazelle//:deps.bzl", "go_repository")
+go_repository(
+    name = "org_golang_x_crypto",
+    commit = "0e37d006457bf46f9e6692014ba72ef82c33022c",
+    importpath = "golang.org/x/crypto",
+)
+go_repository(
+    name = "org_golang_x_sys",
+    commit = "d0be0721c37eeb5299f245a996a483160fc36940",
+    importpath = "golang.org/x/sys",
+)

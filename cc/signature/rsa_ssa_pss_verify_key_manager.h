@@ -13,14 +13,14 @@
 // limitations under the License.
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef TINK_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_
+#define TINK_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_
 
 #include <algorithm>
 #include <vector>
 
-#ifndef THIRD_PARTY_TINK_CC_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_
-#define THIRD_PARTY_TINK_CC_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_
-
 #include "absl/strings/string_view.h"
+#include "tink/core/key_manager_base.h"
 #include "tink/key_manager.h"
 #include "tink/public_key_verify.h"
 #include "tink/util/errors.h"
@@ -33,26 +33,13 @@
 namespace crypto {
 namespace tink {
 
-class RsaSsaPssVerifyKeyManager : public KeyManager<PublicKeyVerify> {
+class RsaSsaPssVerifyKeyManager
+    : public KeyManagerBase<PublicKeyVerify,
+                            google::crypto::tink::RsaSsaPssPublicKey> {
  public:
-  static constexpr char kKeyType[] =
-      "type.googleapis.com/google.crypto.tink.RsaSsaPssPublicKey";
   static constexpr uint32_t kVersion = 0;
 
   RsaSsaPssVerifyKeyManager();
-
-  // Constructs an instance of RsaSsaPss PublicKeyVerify
-  // for the given 'key_data', which must contain RsaSsaPssPublicKey-proto.
-  crypto::tink::util::StatusOr<std::unique_ptr<PublicKeyVerify>> GetPrimitive(
-      const google::crypto::tink::KeyData& key_data) const override;
-
-  // Constructs an instance of RsaSsaPss PublicKeyVerify
-  // for the given 'key', which must be RsaSsaPssPublicKey-proto.
-  crypto::tink::util::StatusOr<std::unique_ptr<PublicKeyVerify>> GetPrimitive(
-      const portable_proto::MessageLite& key) const override;
-
-  // Returns the type_url identifying the key type handled by this manager.
-  const std::string& get_key_type() const override;
 
   // Returns the version of this key manager.
   uint32_t get_version() const override;
@@ -63,34 +50,25 @@ class RsaSsaPssVerifyKeyManager : public KeyManager<PublicKeyVerify> {
 
   virtual ~RsaSsaPssVerifyKeyManager() {}
 
- private:
-  // To reach 128-bit security strength, RSA's modulus must be at least 3072-bit
-  // while 2048-bit RSA key only has 112-bit security. Nevertheless, a 2048-bit
-  // RSA key is considered safe by NIST until 2030 (see
-  // https://www.keylength.com/en/4/).
-  static const size_t kMinModulusSizeInBits = 2048;
-  static constexpr char kKeyTypePrefix[] = "type.googleapis.com/";
-  static constexpr char kKeyFormatUrl[] =
-      "type.googleapis.com/google.crypto.tink.RsaSsaPssKeyFormat";
-
-  std::string key_type_;
-  std::unique_ptr<KeyFactory> key_factory_;
-
-  // Constructs an instance of RsaSsaPss PublicKeyVerify
-  // for the given 'key'.
+ protected:
   crypto::tink::util::StatusOr<std::unique_ptr<PublicKeyVerify>>
-  GetPrimitiveImpl(const google::crypto::tink::RsaSsaPssPublicKey&
-                       rsa_ssa_pss_public_key) const;
+  GetPrimitiveFromKey(const google::crypto::tink::RsaSsaPssPublicKey&
+                          rsa_ssa_pss_public_key) const override;
+
+ private:
+  // Friends that re-use proto validation helpers.
+  friend class RsaSsaPssPrivateKeyFactory;
+  friend class RsaSsaPssSignKeyManager;
+
+  std::unique_ptr<KeyFactory> key_factory_;
 
   static crypto::tink::util::Status Validate(
       const google::crypto::tink::RsaSsaPssParams& params);
   static crypto::tink::util::Status Validate(
       const google::crypto::tink::RsaSsaPssPublicKey& key);
-  static crypto::tink::util::Status Validate(
-      const google::crypto::tink::RsaSsaPssKeyFormat& key_format);
 };
 
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // THIRD_PARTY_TINK_CC_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_
+#endif  // TINK_SIGNATURE_RSA_SSA_PSS_VERIFY_KEY_MANAGER_H_

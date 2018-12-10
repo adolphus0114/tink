@@ -16,6 +16,8 @@
 
 #include "tink/aead/aead_config.h"
 
+#include "absl/memory/memory.h"
+#include "tink/aead/aead_wrapper.h"
 #include "tink/config.h"
 #include "tink/registry.h"
 #include "tink/aead/aead_catalogue.h"
@@ -44,6 +46,9 @@ google::crypto::tink::RegistryConfig* GenerateRegistryConfig() {
   config->add_entry()->MergeFrom(*Config::GetTinkKeyTypeEntry(
       AeadConfig::kCatalogueName, AeadConfig::kPrimitiveName,
       "AesEaxKey", 0, true));
+  config->add_entry()->MergeFrom(*Config::GetTinkKeyTypeEntry(
+      AeadConfig::kCatalogueName, AeadConfig::kPrimitiveName,
+      "XChaCha20Poly1305Key", 0, true));
   config->set_config_name("TINK_AEAD");
   return config;
 }
@@ -63,7 +68,8 @@ const google::crypto::tink::RegistryConfig& AeadConfig::Latest() {
 util::Status AeadConfig::Register() {
   auto status = MacConfig::Register();
   if (!status.ok()) return status;
-  status = Registry::AddCatalogue(kCatalogueName, new AeadCatalogue());
+  status = Registry::AddCatalogue(kCatalogueName,
+                                  absl::make_unique<AeadCatalogue>());
   if (!status.ok()) return status;
   return Config::Register(Latest());
 }

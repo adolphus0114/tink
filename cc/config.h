@@ -65,6 +65,10 @@ class Config {
   static crypto::tink::util::Status Register(
       const google::crypto::tink::RegistryConfig& config);
 
+  // Registers primitive wrappers for the entry given in KeyTypeEntry.
+  static crypto::tink::util::Status RegisterWrapper(
+      absl::string_view lowercase_primitive_name);
+
  private:
   static crypto::tink::util::Status Validate(
       const google::crypto::tink::KeyTypeEntry& entry);
@@ -87,9 +91,8 @@ crypto::tink::util::Status Config::Register(
   auto key_manager_result = catalogue->GetKeyManager(
       entry.type_url(), entry.primitive_name(), entry.key_manager_version());
   if (!key_manager_result.ok()) return key_manager_result.status();
-  return Registry::RegisterKeyManager<P>(
-      key_manager_result.ValueOrDie().release(),
-      entry.new_key_allowed());
+  return Registry::RegisterKeyManager(
+      std::move(key_manager_result.ValueOrDie()), entry.new_key_allowed());
 }
 
 }  // namespace tink

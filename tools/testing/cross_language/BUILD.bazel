@@ -23,6 +23,20 @@ sh_test(
 )
 
 sh_test(
+    name = "version_test",
+    size = "medium",
+    srcs = [
+        "version_test.sh",
+    ],
+    data = [
+        ":test_lib",
+        "//:tink_version",
+        "//tools/testing:version_cli_java",
+        "//tools/testing/cc:version_cli_cc",
+    ],
+)
+
+sh_test(
     name = "aead_test",
     size = "medium",
     srcs = [
@@ -32,6 +46,33 @@ sh_test(
         ":test_lib",
         "//tools/testing:aead_cli_java",
         "//tools/testing/cc:aead_cli_cc",
+        "//tools/tinkey",
+    ],
+)
+
+sh_test(
+    name = "deterministic_aead_test",
+    size = "medium",
+    srcs = [
+        "deterministic_aead_test.sh",
+    ],
+    data = [
+        ":test_lib",
+        "//tools/testing:deterministic_aead_cli_java",
+        "//tools/testing/cc:deterministic_aead_cli_cc",
+        "//tools/tinkey",
+    ],
+)
+
+sh_test(
+    name = "streaming_aead_test",
+    size = "medium",
+    srcs = [
+        "streaming_aead_test.sh",
+    ],
+    data = [
+        ":test_lib",
+        "//tools/testing:streaming_aead_cli_java",
         "//tools/tinkey",
     ],
 )

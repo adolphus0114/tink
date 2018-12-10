@@ -321,7 +321,7 @@ java_lite_proto_library(
 
 go_proto_library(
     name = "ed25519_go_proto",
-    importpath = "github.com/google/tink/proto/ed25519_proto",
+    importpath = "github.com/google/tink/proto/ed25519_go_proto",
     proto = ":ed25519_proto",
 )
 
@@ -645,7 +645,7 @@ java_lite_proto_library(
 
 go_proto_library(
     name = "chacha20_poly1305_go_proto",
-    importpath = "github.com/google/tink/proto/chacha20_poly1305_proto",
+    importpath = "github.com/google/tink/proto/chacha20_poly1305_go_proto",
     proto = ":chacha20_poly1305_proto",
 )
 
@@ -821,6 +821,43 @@ objc_proto_compile(
 )
 
 # -----------------------------------------------
+# empty
+# -----------------------------------------------
+proto_library(
+    name = "empty_proto",
+    srcs = [
+        "empty.proto",
+    ],
+)
+
+cc_proto_library(
+    name = "empty_cc_proto",
+    deps = [":empty_proto"],
+)
+
+java_proto_library(
+    name = "empty_java_proto",
+    deps = [":empty_proto"],
+)
+
+java_lite_proto_library(
+    name = "empty_java_proto_lite",
+    deps = [":empty_proto"],
+)
+
+go_proto_library(
+    name = "empty_go_proto",
+    importpath = "github.com/google/tink/proto/empty_go_proto",
+    proto = ":empty_proto",
+)
+
+objc_proto_compile(
+    name = "empty_objc_pb",
+    protos = ["empty.proto"],
+    tags = ["manual"],
+)
+
+# -----------------------------------------------
 # objc library
 # -----------------------------------------------
 tink_objc_proto_library(
@@ -838,9 +875,12 @@ tink_objc_proto_library(
         ":ecdsa_objc_pb",
         ":ecies_aead_hkdf_objc_pb",
         ":ed25519_objc_pb",
+        ":empty_objc_pb",
         ":hmac_objc_pb",
         ":kms_aead_objc_pb",
         ":kms_envelope_objc_pb",
+        ":rsa_ssa_pkcs1_objc_pb",
+        ":rsa_ssa_pss_objc_pb",
         ":tink_objc_pb",
         ":xchacha20_poly1305_objc_pb",
     ],

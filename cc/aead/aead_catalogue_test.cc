@@ -34,7 +34,7 @@ TEST_F(AeadCatalogueTest, testBasic) {
       "type.googleapis.com/google.crypto.tink.AesEaxKey",
       "type.googleapis.com/google.crypto.tink.AesGcmKey",
       "type.googleapis.com/google.crypto.tink.AesCtrHmacAeadKey",
-      "type.googleapis.com/google.crypto.tink.XChacha20Poly1305Key"};
+      "type.googleapis.com/google.crypto.tink.XChaCha20Poly1305Key"};
 
   AeadCatalogue catalogue;
   {
@@ -72,9 +72,3 @@ TEST_F(AeadCatalogueTest, testBasic) {
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

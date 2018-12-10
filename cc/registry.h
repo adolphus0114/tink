@@ -17,19 +17,12 @@
 #ifndef TINK_REGISTRY_H_
 #define TINK_REGISTRY_H_
 
-#include <mutex>  // NOLINT(build/c++11)
-#include <typeinfo>
-#include <unordered_map>
+#include <memory>
+#include <string>
 
-#include "tink/catalogue.h"
-#include "tink/key_manager.h"
-#include "tink/keyset_handle.h"
-#include "tink/primitive_set.h"
-#include "tink/util/errors.h"
-#include "tink/util/protobuf_helper.h"
+#include "tink/core/registry_impl.h"
 #include "tink/util/status.h"
-#include "tink/util/validation.h"
-#include "proto/tink.pb.h"
+#include "tink/util/statusor.h"
 
 namespace crypto {
 namespace tink {
@@ -62,7 +55,9 @@ class Registry {
   // see https://goo.gl/x0ymDz)
   template <class P>
   static crypto::tink::util::StatusOr<const Catalogue<P>*> get_catalogue(
-      const std::string& catalogue_name);
+      const std::string& catalogue_name) {
+    return RegistryImpl::GlobalInstance().get_catalogue<P>(catalogue_name);
+  }
 
   // Adds the given 'catalogue' under the specified 'catalogue_name',
   // to enable custom configuration of key types and key managers.
@@ -70,22 +65,56 @@ class Registry {
   // Adding a custom catalogue should be a one-time operation,
   // and fails if the given 'catalogue' tries to override
   // an existing, different catalogue for the specified name.
-  //
-  // Takes ownership of 'catalogue', which must be non-nullptr
-  // (in case of failure, 'catalogue' is deleted).
-  template <class P>
+  template <class ConcreteCatalogue>
   static crypto::tink::util::Status AddCatalogue(
-      const std::string& catalogue_name, Catalogue<P>* catalogue);
+      const std::string& catalogue_name,
+      std::unique_ptr<ConcreteCatalogue> catalogue) {
+    return RegistryImpl::GlobalInstance().AddCatalogue(catalogue_name,
+                                                       catalogue.release());
+  }
+
+  // AddCatalogue has the same functionality as the overload which uses a
+  // unique_ptr and which should be preferred.
+  //
+  // Takes ownership of 'catalogue', which must be non-nullptr (in case of
+  // failure, 'catalogue' is deleted).
+  template <class P>
+  ABSL_DEPRECATED("Use AddCatalogue with a unique_ptr input instead.")
+  static crypto::tink::util::Status AddCatalogue(const std::string& catalogue_name,
+                                                 Catalogue<P>* catalogue) {
+    return AddCatalogue(catalogue_name, absl::WrapUnique(catalogue));
+  }
 
   // Registers the given 'manager' for the key type 'manager->get_key_type()'.
-  // Takes ownership of 'manager', which must be non-nullptr.
-  template <class P>
+  template <class ConcreteKeyManager>
   static crypto::tink::util::Status RegisterKeyManager(
-      KeyManager<P>* manager, bool new_key_allowed);
+      std::unique_ptr<ConcreteKeyManager> manager, bool new_key_allowed) {
+    return RegistryImpl::GlobalInstance().RegisterKeyManager(manager.release(),
+                                                             new_key_allowed);
+  }
+
+  // Same functionality as the overload which takes a unique pointer, for
+  // new_key_allowed = true.
+  template <class P>
+  ABSL_DEPRECATED(
+      "Use RegisterKeyManager with a unique_ptr manager and new_key_allowed = "
+      "true instead.")
+  static crypto::tink::util::Status RegisterKeyManager(KeyManager<P>* manager) {
+    return RegisterKeyManager(absl::WrapUnique(manager), true);
+  }
 
   template <class P>
-  static crypto::tink::util::Status RegisterKeyManager(KeyManager<P>* manager) {
-    return RegisterKeyManager(manager, /* new_key_allowed= */ true);
+  ABSL_DEPRECATED("Use RegisterKeyManager with a unique_ptr manager instead.")
+  static crypto::tink::util::Status RegisterKeyManager(KeyManager<P>* manager,
+                                                       bool new_key_allowed) {
+    return RegisterKeyManager(absl::WrapUnique(manager), new_key_allowed);
+  }
+
+  template <class ConcretePrimitiveWrapper>
+  static crypto::tink::util::Status RegisterPrimitiveWrapper(
+      std::unique_ptr<ConcretePrimitiveWrapper> wrapper) {
+    return RegistryImpl::GlobalInstance().RegisterPrimitiveWrapper(
+        wrapper.release());
   }
 
   // Returns a key manager for the given type_url (if any found).
@@ -96,266 +125,62 @@ class Registry {
   // see https://goo.gl/x0ymDz)
   template <class P>
   static crypto::tink::util::StatusOr<const KeyManager<P>*> get_key_manager(
-      const std::string& type_url);
+      const std::string& type_url) {
+    return RegistryImpl::GlobalInstance().get_key_manager<P>(type_url);
+  }
 
   // Convenience method for creating a new primitive for the key given
   // in 'key_data'.  It looks up a KeyManager identified by key_data.type_url,
   // and calls manager's GetPrimitive(key_data)-method.
   template <class P>
   static crypto::tink::util::StatusOr<std::unique_ptr<P>> GetPrimitive(
-      const google::crypto::tink::KeyData& key_data);
-
+      const google::crypto::tink::KeyData& key_data) {
+    return RegistryImpl::GlobalInstance().GetPrimitive<P>(key_data);
+  }
   // Convenience method for creating a new primitive for the key given
   // in 'key'.  It looks up a KeyManager identified by type_url,
   // and calls manager's GetPrimitive(key)-method.
   template <class P>
   static crypto::tink::util::StatusOr<std::unique_ptr<P>> GetPrimitive(
-      const std::string& type_url, const portable_proto::MessageLite& key);
-
-  // Creates a set of primitives corresponding to the keys with
-  // (status == ENABLED) in the keyset given in 'keyset_handle',
-  // assuming all the corresponding key managers are present (keys
-  // with (status != ENABLED) are skipped).
-  //
-  // The returned set is usually later "wrapped" into a class that
-  // implements the corresponding Primitive-interface.
-  template <class P>
-  static crypto::tink::util::StatusOr<std::unique_ptr<PrimitiveSet<P>>>
-  GetPrimitives(const KeysetHandle& keyset_handle,
-                const KeyManager<P>* custom_manager);
+      const std::string& type_url, const portable_proto::MessageLite& key) {
+    return RegistryImpl::GlobalInstance().GetPrimitive<P>(type_url, key);
+  }
 
   // Generates a new KeyData for the specified 'key_template'.
   // It looks up a KeyManager identified by key_template.type_url,
   // and calls KeyManager::NewKeyData.
   // This method should be used solely for key management.
   static crypto::tink::util::StatusOr<
-    std::unique_ptr<google::crypto::tink::KeyData>>
-  NewKeyData(const google::crypto::tink::KeyTemplate& key_template);
+      std::unique_ptr<google::crypto::tink::KeyData>>
+  NewKeyData(const google::crypto::tink::KeyTemplate& key_template) {
+    return RegistryImpl::GlobalInstance().NewKeyData(key_template);
+  }
 
   // Convenience method for extracting the public key data from the
   // private key given in serialized_private_key.
   // It looks up a KeyManager identified by type_url, whose KeyFactory must be
   // a PrivateKeyFactory, and calls PrivateKeyFactory::GetPublicKeyData.
   static crypto::tink::util::StatusOr<
-    std::unique_ptr<google::crypto::tink::KeyData>>
+      std::unique_ptr<google::crypto::tink::KeyData>>
   GetPublicKeyData(const std::string& type_url,
-                   const std::string& serialized_private_key);
+                   const std::string& serialized_private_key) {
+    return RegistryImpl::GlobalInstance().GetPublicKeyData(
+        type_url, serialized_private_key);
+  }
+
+  // Looks up the globally registered PrimitiveWrapper for this primitive
+  // and wraps the given PrimitiveSet with it.
+  template <class P>
+  static crypto::tink::util::StatusOr<std::unique_ptr<P>> Wrap(
+      std::unique_ptr<PrimitiveSet<P>> primitive_set) {
+    return RegistryImpl::GlobalInstance().Wrap<P>(std::move(primitive_set));
+  }
 
   // Resets the registry.
   // After reset the registry is empty, i.e. it contains neither catalogues
   // nor key managers. This method is intended for testing only.
-  static void Reset();
-
- private:
-  typedef std::unordered_map<std::string,
-                             std::unique_ptr<void, void (*)(void*)>>
-      LabelToObjectMap;
-  typedef std::unordered_map<std::string, const char*> LabelToTypeNameMap;
-  typedef std::unordered_map<std::string, bool> LabelToBoolMap;
-  typedef std::unordered_map<std::string, const KeyFactory*>
-      LabelToKeyFactoryMap;
-
-  static std::recursive_mutex maps_mutex_;
-  // Maps for key manager data.
-  static LabelToObjectMap type_to_manager_map_;      // guarded by maps_mutex_
-  static LabelToTypeNameMap type_to_primitive_map_;  // guarded by maps_mutex_
-  static LabelToBoolMap type_to_new_key_allowed_map_;        // by maps_mutex_
-  static LabelToKeyFactoryMap type_to_key_factory_map_;      // by maps_mutex_
-  // Maps for catalogue-data.
-  static LabelToObjectMap name_to_catalogue_map_;    // guarded by maps_mutex_
-  static LabelToTypeNameMap name_to_primitive_map_;  // guarded by maps_mutex_
-
-  static crypto::tink::util::StatusOr<bool> get_new_key_allowed(
-      const std::string& type_url);
-  static crypto::tink::util::StatusOr<const KeyFactory*> get_key_factory(
-      const std::string& type_url);
+  static void Reset() { return RegistryImpl::GlobalInstance().Reset(); }
 };
-
-///////////////////////////////////////////////////////////////////////////////
-// Implementation details.
-
-template <class P>
-void delete_manager(void* t) {
-  delete static_cast<KeyManager<P>*>(t);
-}
-
-template <class P>
-void delete_catalogue(void* t) {
-  delete static_cast<Catalogue<P>*>(t);
-}
-
-// static
-template <class P>
-crypto::tink::util::Status Registry::AddCatalogue(
-    const std::string& catalogue_name, Catalogue<P>* catalogue) {
-  if (catalogue == nullptr) {
-    return crypto::tink::util::Status(
-        crypto::tink::util::error::INVALID_ARGUMENT,
-        "Parameter 'catalogue' must be non-null.");
-  }
-  std::unique_ptr<void, void (*)(void*)> entry(catalogue, delete_catalogue<P>);
-  std::lock_guard<std::recursive_mutex> lock(maps_mutex_);
-  auto curr_catalogue = name_to_catalogue_map_.find(catalogue_name);
-  if (curr_catalogue != name_to_catalogue_map_.end()) {
-    auto existing = static_cast<Catalogue<P>*>(curr_catalogue->second.get());
-    if (typeid(*existing).name() != typeid(*catalogue).name()) {
-      return ToStatusF(crypto::tink::util::error::ALREADY_EXISTS,
-                       "A catalogue named '%s' has been already added.",
-                       catalogue_name.c_str());
-    }
-  } else {
-    name_to_catalogue_map_.insert(
-        std::make_pair(catalogue_name, std::move(entry)));
-    name_to_primitive_map_.insert(
-        std::make_pair(catalogue_name, typeid(P).name()));
-  }
-  return crypto::tink::util::Status::OK;
-}
-
-// static
-template <class P>
-crypto::tink::util::StatusOr<const Catalogue<P>*> Registry::get_catalogue(
-    const std::string& catalogue_name) {
-  std::lock_guard<std::recursive_mutex> lock(maps_mutex_);
-  auto catalogue_entry = name_to_catalogue_map_.find(catalogue_name);
-  if (catalogue_entry == name_to_catalogue_map_.end()) {
-    return ToStatusF(crypto::tink::util::error::NOT_FOUND,
-                     "No catalogue named '%s' has been added.",
-                     catalogue_name.c_str());
-  }
-  if (name_to_primitive_map_[catalogue_name] != typeid(P).name()) {
-    return ToStatusF(crypto::tink::util::error::INVALID_ARGUMENT,
-                     "Wrong Primitive type for catalogue named '%s': "
-                     "got '%s', expected '%s'",
-                     catalogue_name.c_str(), typeid(P).name(),
-                     name_to_primitive_map_[catalogue_name]);
-  }
-  return static_cast<Catalogue<P>*>(catalogue_entry->second.get());
-}
-
-// static
-template <class P>
-crypto::tink::util::Status Registry::RegisterKeyManager(
-    KeyManager<P>* manager, bool new_key_allowed) {
-  if (manager == nullptr) {
-    return crypto::tink::util::Status(
-        crypto::tink::util::error::INVALID_ARGUMENT,
-        "Parameter 'manager' must be non-null.");
-  }
-  std::string type_url = manager->get_key_type();
-  std::unique_ptr<void, void (*)(void*)> entry(manager, delete_manager<P>);
-  if (!manager->DoesSupport(type_url)) {
-    return ToStatusF(crypto::tink::util::error::INVALID_ARGUMENT,
-                     "The manager does not support type '%s'.",
-                     type_url.c_str());
-  }
-  std::lock_guard<std::recursive_mutex> lock(maps_mutex_);
-  auto curr_manager = type_to_manager_map_.find(type_url);
-  if (curr_manager != type_to_manager_map_.end()) {
-    auto existing = static_cast<KeyManager<P>*>(curr_manager->second.get());
-    if (typeid(*existing).name() != typeid(*manager).name()) {
-      return ToStatusF(crypto::tink::util::error::ALREADY_EXISTS,
-                       "A manager for type '%s' has been already registered.",
-                       type_url.c_str());
-    } else {
-      auto curr_new_key_allowed = type_to_new_key_allowed_map_.find(type_url);
-      if (!curr_new_key_allowed->second && new_key_allowed) {
-        return ToStatusF(crypto::tink::util::error::ALREADY_EXISTS,
-                         "A manager for type '%s' has been already registered "
-                         "with forbidden new key operation.",
-                         type_url.c_str());
-      } else {
-        curr_new_key_allowed->second = new_key_allowed;
-      }
-    }
-  } else {
-    type_to_manager_map_.insert(
-        std::make_pair(type_url, std::move(entry)));
-    type_to_primitive_map_.insert(
-        std::make_pair(type_url, typeid(P).name()));
-    type_to_new_key_allowed_map_.insert(
-        std::make_pair(type_url, new_key_allowed));
-    type_to_key_factory_map_.insert(
-        std::make_pair(type_url, &(manager->get_key_factory())));
-  }
-  return crypto::tink::util::Status::OK;
-}
-
-// static
-template <class P>
-crypto::tink::util::StatusOr<const KeyManager<P>*> Registry::get_key_manager(
-    const std::string& type_url) {
-  std::lock_guard<std::recursive_mutex> lock(maps_mutex_);
-  auto manager_entry = type_to_manager_map_.find(type_url);
-  if (manager_entry == type_to_manager_map_.end()) {
-    return ToStatusF(crypto::tink::util::error::NOT_FOUND,
-                     "No manager for type '%s' has been registered.",
-                     type_url.c_str());
-  }
-  if (type_to_primitive_map_[type_url] != typeid(P).name()) {
-    return ToStatusF(crypto::tink::util::error::INVALID_ARGUMENT,
-                     "Wrong Primitive type for key type '%s': "
-                     "got '%s', expected '%s'",
-                     type_url.c_str(), typeid(P).name(),
-                     type_to_primitive_map_[type_url]);
-  }
-  return static_cast<KeyManager<P>*>(manager_entry->second.get());
-}
-
-// static
-template <class P>
-crypto::tink::util::StatusOr<std::unique_ptr<P>> Registry::GetPrimitive(
-    const google::crypto::tink::KeyData& key_data) {
-  auto key_manager_result = get_key_manager<P>(key_data.type_url());
-  if (key_manager_result.ok()) {
-    return key_manager_result.ValueOrDie()->GetPrimitive(key_data);
-  }
-  return key_manager_result.status();
-}
-
-// static
-template <class P>
-crypto::tink::util::StatusOr<std::unique_ptr<P>> Registry::GetPrimitive(
-    const std::string& type_url, const portable_proto::MessageLite& key) {
-  auto key_manager_result = get_key_manager<P>(type_url);
-  if (key_manager_result.ok()) {
-    return key_manager_result.ValueOrDie()->GetPrimitive(key);
-  }
-  return key_manager_result.status();
-}
-
-// static
-template <class P>
-crypto::tink::util::StatusOr<std::unique_ptr<PrimitiveSet<P>>>
-Registry::GetPrimitives(const KeysetHandle& keyset_handle,
-                        const KeyManager<P>* custom_manager) {
-  crypto::tink::util::Status status =
-      ValidateKeyset(keyset_handle.get_keyset());
-  if (!status.ok()) return status;
-  std::unique_ptr<PrimitiveSet<P>> primitives(new PrimitiveSet<P>());
-  for (const google::crypto::tink::Keyset::Key& key :
-       keyset_handle.get_keyset().key()) {
-    if (key.status() == google::crypto::tink::KeyStatusType::ENABLED) {
-      std::unique_ptr<P> primitive;
-      if (custom_manager != nullptr &&
-          custom_manager->DoesSupport(key.key_data().type_url())) {
-        auto primitive_result = custom_manager->GetPrimitive(key.key_data());
-        if (!primitive_result.ok()) return primitive_result.status();
-        primitive = std::move(primitive_result.ValueOrDie());
-      } else {
-        auto primitive_result = GetPrimitive<P>(key.key_data());
-        if (!primitive_result.ok()) return primitive_result.status();
-        primitive = std::move(primitive_result.ValueOrDie());
-      }
-      auto entry_result = primitives->AddPrimitive(std::move(primitive), key);
-      if (!entry_result.ok()) return entry_result.status();
-      if (key.key_id() == keyset_handle.get_keyset().primary_key_id()) {
-        primitives->set_primary(entry_result.ValueOrDie());
-      }
-    }
-  }
-  return std::move(primitives);
-}
 
 }  // namespace tink
 }  // namespace crypto

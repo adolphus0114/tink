@@ -17,8 +17,10 @@
 #include "tink/aead/aead_config.h"
 
 #include "tink/aead.h"
+#include "tink/aead/aead_key_templates.h"
 #include "tink/catalogue.h"
 #include "tink/config.h"
+#include "tink/keyset_handle.h"
 #include "tink/registry.h"
 #include "tink/util/status.h"
 #include "gtest/gtest.h"
@@ -50,12 +52,13 @@ TEST_F(AeadConfigTest, testBasic) {
       "type.googleapis.com/google.crypto.tink.AesCtrHmacAeadKey";
   std::string aes_eax_key_type =
       "type.googleapis.com/google.crypto.tink.AesEaxKey";
-  std::string aes_gcm_key_type =
-      "type.googleapis.com/google.crypto.tink.AesGcmKey";
+  std::string aes_gcm_key_type = "type.googleapis.com/google.crypto.tink.AesGcmKey";
+  std::string xchacha20_poly1305_key_type =
+      "type.googleapis.com/google.crypto.tink.XChaCha20Poly1305Key";
   std::string hmac_key_type = "type.googleapis.com/google.crypto.tink.HmacKey";
   auto& config = AeadConfig::Latest();
 
-  EXPECT_EQ(4, AeadConfig::Latest().entry_size());
+  EXPECT_EQ(5, AeadConfig::Latest().entry_size());
 
   EXPECT_EQ("TinkMac", config.entry(0).catalogue_name());
   EXPECT_EQ("Mac", config.entry(0).primitive_name());
@@ -80,6 +83,12 @@ TEST_F(AeadConfigTest, testBasic) {
   EXPECT_EQ(aes_eax_key_type, config.entry(3).type_url());
   EXPECT_EQ(true, config.entry(3).new_key_allowed());
   EXPECT_EQ(0, config.entry(3).key_manager_version());
+
+  EXPECT_EQ("TinkAead", config.entry(4).catalogue_name());
+  EXPECT_EQ("Aead", config.entry(4).primitive_name());
+  EXPECT_EQ(xchacha20_poly1305_key_type, config.entry(4).type_url());
+  EXPECT_EQ(true, config.entry(4).new_key_allowed());
+  EXPECT_EQ(0, config.entry(4).key_manager_version());
 
   // No key manager before registration.
   auto manager_result = Registry::get_key_manager<Aead>(aes_gcm_key_type);
@@ -123,11 +132,33 @@ TEST_F(AeadConfigTest, testRegister) {
   EXPECT_EQ(util::error::ALREADY_EXISTS, status.error_code());
 }
 
+// Tests that the AeadWrapper has been properly registered and we can wrap
+// primitives.
+TEST_F(AeadConfigTest, WrappersRegistered) {
+  ASSERT_TRUE(AeadConfig::Register().ok());
+  auto keyset_handle_result =
+      KeysetHandle::GenerateNew(AeadKeyTemplates::Aes256Eax());
+  ASSERT_TRUE(keyset_handle_result.ok());
+
+  auto primitive_set_result =
+      keyset_handle_result.ValueOrDie()->GetPrimitives<Aead>(
+          nullptr);
+  ASSERT_TRUE(primitive_set_result.ok());
+
+  auto primitive_result =
+      Registry::Wrap(std::move(primitive_set_result.ValueOrDie()));
+  ASSERT_TRUE(primitive_result.ok());
+
+  auto encryption_result =
+      primitive_result.ValueOrDie()->Encrypt("encrypted text", "");
+  ASSERT_TRUE(encryption_result.ok());
+
+  auto decryption_result = primitive_result.ValueOrDie()->Decrypt(
+      encryption_result.ValueOrDie(), "");
+  ASSERT_TRUE(decryption_result.ok());
+  EXPECT_EQ(decryption_result.ValueOrDie(), "encrypted text");
+}
+
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

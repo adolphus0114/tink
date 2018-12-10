@@ -14,6 +14,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef __SSE4_1__
+#ifdef __AES__
+
 #include "tink/subtle/aes_eax_aesni.h"
 
 #include <string>
@@ -269,7 +272,5 @@ TEST(AesEaxAesniTest, TestVectors) {
 }  // namespace tink
 }  // namespace crypto
 
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}
+#endif  // __AES__
+#endif  // __SSE4_1__

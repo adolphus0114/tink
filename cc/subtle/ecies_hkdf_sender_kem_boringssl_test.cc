@@ -14,6 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <iostream>
+
 #include "tink/subtle/ecies_hkdf_sender_kem_boringssl.h"
 #include "tink/subtle/common_enums.h"
 #include "tink/subtle/ecies_hkdf_recipient_kem_boringssl.h"
@@ -80,8 +82,3 @@ TEST_F(EciesHkdfSenderKemBoringSslTest, testSenderRecipientBasic) {
 }  // namespace subtle
 }  // namespace tink
 }  // namespace crypto
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

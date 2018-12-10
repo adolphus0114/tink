@@ -106,22 +106,13 @@ TEST_F(AesGcmKeyManagerTest, testKeyDataErrors) {
       if (len == 16 || len == 32) {
         EXPECT_TRUE(result.ok()) << result.status();
       } else {
-        if (len < 16) {
-          EXPECT_FALSE(result.ok());
-          EXPECT_EQ(util::error::INVALID_ARGUMENT,
-                    result.status().error_code());
-          EXPECT_PRED_FORMAT2(testing::IsSubstring, "too short",
-                              result.status().error_message());
-        } else {
-          EXPECT_FALSE(result.ok());
-          EXPECT_EQ(util::error::INVALID_ARGUMENT,
-                    result.status().error_code());
-          EXPECT_PRED_FORMAT2(testing::IsSubstring,
-                              std::to_string(len) + " bytes",
-                              result.status().error_message());
-          EXPECT_PRED_FORMAT2(testing::IsSubstring, "supported sizes",
-                              result.status().error_message());
-        }
+        EXPECT_FALSE(result.ok());
+        EXPECT_EQ(util::error::INVALID_ARGUMENT, result.status().error_code());
+        EXPECT_PRED_FORMAT2(testing::IsSubstring,
+                            std::to_string(len) + " bytes",
+                            result.status().error_message());
+        EXPECT_PRED_FORMAT2(testing::IsSubstring, "supported sizes",
+                            result.status().error_message());
       }
     }
   }
@@ -150,13 +141,6 @@ TEST_F(AesGcmKeyManagerTest, testKeyMessageErrors) {
       if (len == 16 || len == 32) {
         EXPECT_TRUE(result.ok()) << result.status();
       } else {
-        if (len < 16) {
-          EXPECT_FALSE(result.ok());
-          EXPECT_EQ(util::error::INVALID_ARGUMENT,
-                    result.status().error_code());
-          EXPECT_PRED_FORMAT2(testing::IsSubstring, "too short",
-                              result.status().error_message());
-        } else {
           EXPECT_FALSE(result.ok());
           EXPECT_EQ(util::error::INVALID_ARGUMENT,
                     result.status().error_code());
@@ -165,7 +149,6 @@ TEST_F(AesGcmKeyManagerTest, testKeyMessageErrors) {
                               result.status().error_message());
           EXPECT_PRED_FORMAT2(testing::IsSubstring, "supported sizes",
                               result.status().error_message());
-        }
       }
     }
   }
@@ -235,9 +218,9 @@ TEST_F(AesGcmKeyManagerTest, testNewKeyErrors) {
     auto result = key_factory.NewKey(key_format);
     EXPECT_FALSE(result.ok());
     EXPECT_EQ(util::error::INVALID_ARGUMENT, result.status().error_code());
-    EXPECT_PRED_FORMAT2(testing::IsSubstring, "key_size",
+    EXPECT_PRED_FORMAT2(testing::IsSubstring, "8 bytes",
                         result.status().error_message());
-    EXPECT_PRED_FORMAT2(testing::IsSubstring, "too small",
+    EXPECT_PRED_FORMAT2(testing::IsSubstring, "supported sizes",
                         result.status().error_message());
   }
 }
@@ -286,9 +269,3 @@ TEST_F(AesGcmKeyManagerTest, testNewKeyBasic) {
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}

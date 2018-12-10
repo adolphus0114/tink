@@ -45,8 +45,9 @@ namespace {
 class EciesAeadHkdfPublicKeyManagerTest : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    auto aes_gcm_key_manager = new AesGcmKeyManager();
-    ASSERT_TRUE(Registry::RegisterKeyManager(aes_gcm_key_manager).ok());
+    ASSERT_TRUE(Registry::RegisterKeyManager(
+                    absl::make_unique<AesGcmKeyManager>(), true)
+                    .ok());
   }
 
   std::string key_type_prefix = "type.googleapis.com/";
@@ -183,9 +184,3 @@ TEST_F(EciesAeadHkdfPublicKeyManagerTest, testNewKeyError) {
 }  // namespace
 }  // namespace tink
 }  // namespace crypto
-
-
-int main(int ac, char* av[]) {
-  testing::InitGoogleTest(&ac, av);
-  return RUN_ALL_TESTS();
-}
